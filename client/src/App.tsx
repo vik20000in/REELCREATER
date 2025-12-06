@@ -46,7 +46,7 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [duration, setDuration] = useState<15 | 30 | 60>(30);
+  const [duration, setDuration] = useState<number>(30);
   const [error, setError] = useState<string | null>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -209,22 +209,18 @@ function App() {
                 </div>
 
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">Duration</label>
-                  <div className="flex gap-2">
-                    {[15, 30, 60].map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => setDuration(d as 15 | 30 | 60)}
-                        className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          duration === d 
-                            ? 'bg-violet-600 text-white' 
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                        }`}
-                      >
-                        {d}s
-                      </button>
-                    ))}
+                  <label className="block text-sm text-gray-400 mb-2">Duration: <span className="text-white font-bold">{duration}s</span></label>
+                  <input
+                    type="range"
+                    min="15"
+                    max="60"
+                    value={duration}
+                    onChange={(e) => setDuration(parseInt(e.target.value))}
+                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-violet-500"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>15s</span>
+                    <span>60s</span>
                   </div>
                 </div>
               </div>

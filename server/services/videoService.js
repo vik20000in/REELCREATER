@@ -51,26 +51,33 @@ exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, tr
     
     (async () => {
       try {
-        const clips = [];
+        const clips = new Array(imagePaths.length);
         
-        for (let i = 0; i < imagePaths.length; i++) {
-          const imgPath = imagePaths[i];
+        // Parallel processing with concurrency limit
+        const concurrencyLimit = 4;
+        const queue = imagePaths.map((imgPath, i) => ({ imgPath, i }));
+        const activePromises = [];
+
+        const processImage = async ({ imgPath, i }) => {
           const clipPath = path.join(tempDir, `clip_${i}.mp4`);
-          
-          // Randomize zoom/pan
-          const zoom = (Math.random() * 0.3) + 1.1; // 1.1 to 1.4
-          const x = Math.random() > 0.5 ? 0 : (1920 * (zoom - 1)); // Left or Right
-          const y = Math.random() > 0.5 ? 0 : (1080 * (zoom - 1)); // Top or Bottom
-          
-          // Ken Burns filter
-          // scale=8000:-1,zoompan=z='min(zoom+0.0015,1.5)':d=700:x='if(gte(zoom,1.5),x,x+1/a)':y='if(gte(zoom,1.5),y,y+1)':s=1280x720
-          // Simplified: zoompan
-          
           // We need to ensure the clip is long enough for the transition overlap
           const clipDuration = imageDuration + (i < imagePaths.length - 1 ? transitionDuration : 0);
           
           await createClip(imgPath, clipPath, clipDuration);
-          clips.push(clipPath);
+          clips[i] = clipPath;
+        };
+
+        while (queue.length > 0 || activePromises.length > 0) {
+          while (queue.length > 0 && activePromises.length < concurrencyLimit) {
+            const task = queue.shift();
+            const promise = processImage(task).then(() => {
+              activePromises.splice(activePromises.indexOf(promise), 1);
+            });
+            activePromises.push(promise);
+          }
+          if (activePromises.length > 0) {
+            await Promise.race(activePromises);
+          }
         }
         
         // Now concat with crossfade
@@ -102,6 +109,7 @@ exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, tr
         let outputOptions = [
           '-c:v', 'libx264',
           '-pix_fmt', 'yuv420p',
+          '-preset', 'fast',
           '-shortest' // Cut to shortest stream (video or audio)
         ];
         
@@ -146,23 +154,28 @@ function createClip(imagePath, outputPath, duration) {
   return new Promise((resolve, reject) => {
     // Randomize direction
     const frames = Math.ceil(duration * 25) + 25; // Add buffer frames
+    // Reduced max zoom to 1.2 to minimize cropping of the padded image
     const directions = [
-      `z='min(zoom+0.0015,1.5)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'`, // Zoom in center
-      `z='min(zoom+0.0015,1.5)':d=${frames}:x='0':y='0'`, // Zoom in top-left
-      `z='1.5-0.0015*on':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'`, // Zoom out center
+      `z='min(zoom+0.0010,1.2)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'`, // Zoom in center
+      `z='min(zoom+0.0010,1.2)':d=${frames}:x='0':y='0'`, // Zoom in top-left
+      `z='1.2-0.0010*on':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'`, // Zoom out center
     ];
     const zoompan = directions[Math.floor(Math.random() * directions.length)];
 
     ffmpeg(imagePath)
       .loop(duration)
-      .videoFilters([
-        `scale=1080:1920:force_original_aspect_ratio=increase`, // Scale to cover 9:16
-        `crop=1080:1920:(iw-ow)/2:(ih-oh)/2`, // Crop to exact 9:16
-        `setsar=1`, // Ensure square pixels
-        `zoompan=${zoompan}:s=1080x1920:fps=25` // Apply Ken Burns
-      ])
+      .complexFilter([
+        // 1. Background: Scale to cover 1080x1920, crop, and blur
+        `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:(iw-ow)/2:(ih-oh)/2,boxblur=40:20[bg]`,
+        // 2. Foreground: Scale to fit 1080x1920 (preserve aspect ratio)
+        `[0:v]scale=1080:1920:force_original_aspect_ratio=decrease[fg]`,
+        // 3. Overlay Foreground on Background
+        `[bg][fg]overlay=(W-w)/2:(H-h)/2[ov]`,
+        // 4. Apply Ken Burns to the combined result
+        `[ov]setsar=1,zoompan=${zoompan}:s=1080x1920:fps=25[v]`
+      ], 'v')
       .duration(duration)
-      .outputOptions(['-c:v', 'libx264', '-pix_fmt', 'yuv420p'])
+      .outputOptions(['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', 'ultrafast'])
       .on('end', resolve)
       .on('error', reject)
       .save(outputPath);
