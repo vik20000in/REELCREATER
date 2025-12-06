@@ -43,6 +43,7 @@ function App() {
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [startTime, setStartTime] = useState('');
   const [transition, setTransition] = useState('random');
+  const [animationType, setAnimationType] = useState('random');
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -75,6 +76,7 @@ function App() {
     formData.append('youtubeUrl', youtubeUrl);
     formData.append('startTime', startTime);
     formData.append('transition', transition);
+    formData.append('animationType', animationType);
     formData.append('duration', duration.toString());
 
     try {
@@ -189,6 +191,26 @@ function App() {
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-pink-500 transition-colors"
                       />
                     </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Animation Style</label>
+                  <div className="relative">
+                    <Wand2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <select
+                      value={animationType}
+                      onChange={(e) => setAnimationType(e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-pink-500 transition-colors appearance-none"
+                    >
+                      <option value="random">Random (Surprise Me)</option>
+                      <option value="zoomIn">Zoom In</option>
+                      <option value="zoomOut">Zoom Out</option>
+                      <option value="panLeft">Pan Left</option>
+                      <option value="panRight">Pan Right</option>
+                      <option value="panUp">Pan Up</option>
+                      <option value="panDown">Pan Down</option>
+                    </select>
                   </div>
                 </div>
 

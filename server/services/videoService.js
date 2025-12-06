@@ -16,7 +16,7 @@ const TRANSITIONS = [
   'hlslice', 'hrslice', 'vuslice', 'vdslice'
 ];
 
-exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, transitionType) => {
+exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, transitionType, animationType) => {
   return new Promise((resolve, reject) => {
     const outputPath = path.join(__dirname, '../temp', `${jobId}.mp4`);
     const tempDir = path.join(__dirname, '../temp', jobId);
@@ -63,7 +63,7 @@ exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, tr
           // We need to ensure the clip is long enough for the transition overlap
           const clipDuration = imageDuration + (i < imagePaths.length - 1 ? transitionDuration : 0);
           
-          await createClip(imgPath, clipPath, clipDuration);
+          await createClip(imgPath, clipPath, clipDuration, animationType);
           clips[i] = clipPath;
         };
 
@@ -150,17 +150,46 @@ exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, tr
   });
 };
 
-function createClip(imagePath, outputPath, duration) {
+function createClip(imagePath, outputPath, duration, animationType) {
   return new Promise((resolve, reject) => {
     // Randomize direction
     const frames = Math.ceil(duration * 25) + 25; // Add buffer frames
     // Reduced max zoom to 1.2 to minimize cropping of the padded image
-    const directions = [
-      `z='min(zoom+0.0010,1.2)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'`, // Zoom in center
-      `z='min(zoom+0.0010,1.2)':d=${frames}:x='0':y='0'`, // Zoom in top-left
-      `z='1.2-0.0010*on':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'`, // Zoom out center
-    ];
-    const zoompan = directions[Math.floor(Math.random() * directions.length)];
+    
+    const zoomInCenter = `z='min(zoom+0.0010,1.2)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'`;
+    const zoomInTopLeft = `z='min(zoom+0.0010,1.2)':d=${frames}:x='0':y='0'`;
+    const zoomOutCenter = `z='1.2-0.0010*on':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'`;
+    
+    // Pan effects (constant zoom 1.2)
+    const panRight = `z='1.2':d=${frames}:x='(iw-iw/zoom)*(on/${frames})':y='ih/2-(ih/zoom/2)'`;
+    const panLeft = `z='1.2':d=${frames}:x='(iw-iw/zoom)*(1-on/${frames})':y='ih/2-(ih/zoom/2)'`;
+    const panDown = `z='1.2':d=${frames}:x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*(on/${frames})'`;
+    const panUp = `z='1.2':d=${frames}:x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*(1-on/${frames})'`;
+
+    let zoompan;
+    switch (animationType) {
+      case 'zoomIn':
+        zoompan = Math.random() > 0.5 ? zoomInCenter : zoomInTopLeft;
+        break;
+      case 'zoomOut':
+        zoompan = zoomOutCenter;
+        break;
+      case 'panRight':
+        zoompan = panRight;
+        break;
+      case 'panLeft':
+        zoompan = panLeft;
+        break;
+      case 'panUp':
+        zoompan = panUp;
+        break;
+      case 'panDown':
+        zoompan = panDown;
+        break;
+      default: // random
+        const directions = [zoomInCenter, zoomInTopLeft, zoomOutCenter, panRight, panLeft, panUp, panDown];
+        zoompan = directions[Math.floor(Math.random() * directions.length)];
+    }
 
     ffmpeg(imagePath)
       .loop(duration)
