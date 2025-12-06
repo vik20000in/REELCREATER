@@ -39,7 +39,7 @@ exports.generateReel = (req, res) => {
 
     const jobId = uuidv4();
     const images = req.files.map(f => f.path);
-    const { youtubeUrl, duration = 30 } = req.body;
+    const { youtubeUrl, startTime, transition, duration = 30 } = req.body;
 
     try {
       console.log(`[${jobId}] Starting generation...`);
@@ -53,7 +53,7 @@ exports.generateReel = (req, res) => {
 
       // 2. Generate Video
       console.log(`[${jobId}] Processing video...`);
-      const outputPath = await videoService.createReel(images, audioPath, parseInt(duration), jobId);
+      const outputPath = await videoService.createReel(images, audioPath, parseInt(duration), jobId, startTime, transition);
 
       // 3. Send File
       res.download(outputPath, 'reel.mp4', (err) => {

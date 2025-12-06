@@ -6,7 +6,17 @@ const { v4: uuidv4 } = require('uuid');
 // Ensure ffmpeg is available in path or set it here
 // ffmpeg.setFfmpegPath('path/to/ffmpeg'); 
 
-exports.createReel = (imagePaths, audioPath, totalDuration, jobId) => {
+const TRANSITIONS = [
+  'fade', 'wipeleft', 'wiperight', 'wipeup', 'wipedown', 
+  'slideleft', 'slideright', 'slideup', 'slidedown', 
+  'circlecrop', 'rectcrop', 'distance', 'fadeblack', 'fadewhite', 
+  'radial', 'smoothleft', 'smoothright', 'circleopen', 'circleclose', 
+  'vertopen', 'vertclose', 'horzopen', 'horzclose', 'dissolve', 
+  'pixelize', 'diagtl', 'diagtr', 'diagbl', 'diagbr', 
+  'hlslice', 'hrslice', 'vuslice', 'vdslice'
+];
+
+exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, transitionType) => {
   return new Promise((resolve, reject) => {
     const outputPath = path.join(__dirname, '../temp', `${jobId}.mp4`);
     const tempDir = path.join(__dirname, '../temp', jobId);
@@ -18,6 +28,12 @@ exports.createReel = (imagePaths, audioPath, totalDuration, jobId) => {
     // Calculate duration per image
     const imageDuration = totalDuration / imagePaths.length;
     const transitionDuration = 1.0; // 1 second crossfade
+
+    // Determine transition
+    let selectedTransition = transitionType;
+    if (!selectedTransition || selectedTransition === 'random') {
+      selectedTransition = TRANSITIONS[Math.floor(Math.random() * TRANSITIONS.length)];
+    }
 
     // Create a complex filter for Ken Burns and transitions
     // This is complex. For simplicity in this MVP, we might just do a slideshow
@@ -65,9 +81,7 @@ exports.createReel = (imagePaths, audioPath, totalDuration, jobId) => {
         const command = ffmpeg();
         clips.forEach(clip => command.input(clip));
         
-        if (audioPath) {
-          command.input(audioPath);
-        }
+        // Audio input is handled later
 
         const filterComplex = [];
         let lastStream = '0:v';
@@ -76,7 +90,7 @@ exports.createReel = (imagePaths, audioPath, totalDuration, jobId) => {
         for (let i = 1; i < clips.length; i++) {
           const nextStream = `${i}:v`;
           const outStream = `v${i}`;
-          filterComplex.push(`[${lastStream}][${nextStream}]xfade=transition=fade:duration=${transitionDuration}:offset=${currentOffset}[${outStream}]`);
+          filterComplex.push(`[${lastStream}][${nextStream}]xfade=transition=${selectedTransition}:duration=${transitionDuration}:offset=${currentOffset}[${outStream}]`);
           lastStream = outStream;
           currentOffset += imageDuration;
         }
@@ -92,6 +106,13 @@ exports.createReel = (imagePaths, audioPath, totalDuration, jobId) => {
         ];
         
         if (audioPath) {
+          // Handle start time
+          if (startTime) {
+            command.addInput(audioPath).inputOptions(['-ss', startTime]);
+          } else {
+            command.input(audioPath);
+          }
+
           // Loop audio if it's shorter? Or just let it play.
           // User said "download 30-60s clip", so it should be enough.
           // We might need to fade out audio.

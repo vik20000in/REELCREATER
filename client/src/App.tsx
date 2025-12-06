@@ -1,9 +1,48 @@
 import React, { useState } from 'react';
-import { Upload, Youtube, Film, Music, Download, Loader2, X, Play } from 'lucide-react';
+import { Upload, Youtube, Film, Music, Download, Loader2, X, Play, Clock, Wand2 } from 'lucide-react';
+
+const TRANSITIONS = [
+  { id: 'random', name: 'Random (Surprise Me)' },
+  { id: 'fade', name: 'Fade' },
+  { id: 'wipeleft', name: 'Wipe Left' },
+  { id: 'wiperight', name: 'Wipe Right' },
+  { id: 'wipeup', name: 'Wipe Up' },
+  { id: 'wipedown', name: 'Wipe Down' },
+  { id: 'slideleft', name: 'Slide Left' },
+  { id: 'slideright', name: 'Slide Right' },
+  { id: 'slideup', name: 'Slide Up' },
+  { id: 'slidedown', name: 'Slide Down' },
+  { id: 'circlecrop', name: 'Circle Crop' },
+  { id: 'rectcrop', name: 'Rect Crop' },
+  { id: 'distance', name: 'Distance' },
+  { id: 'fadeblack', name: 'Fade Black' },
+  { id: 'fadewhite', name: 'Fade White' },
+  { id: 'radial', name: 'Radial' },
+  { id: 'smoothleft', name: 'Smooth Left' },
+  { id: 'smoothright', name: 'Smooth Right' },
+  { id: 'circleopen', name: 'Circle Open' },
+  { id: 'circleclose', name: 'Circle Close' },
+  { id: 'vertopen', name: 'Vertical Open' },
+  { id: 'vertclose', name: 'Vertical Close' },
+  { id: 'horzopen', name: 'Horizontal Open' },
+  { id: 'horzclose', name: 'Horizontal Close' },
+  { id: 'dissolve', name: 'Dissolve' },
+  { id: 'pixelize', name: 'Pixelize' },
+  { id: 'diagtl', name: 'Diagonal TL' },
+  { id: 'diagtr', name: 'Diagonal TR' },
+  { id: 'diagbl', name: 'Diagonal BL' },
+  { id: 'diagbr', name: 'Diagonal BR' },
+  { id: 'hlslice', name: 'Horizontal Slice' },
+  { id: 'hrslice', name: 'Horizontal Reverse Slice' },
+  { id: 'vuslice', name: 'Vertical Up Slice' },
+  { id: 'vdslice', name: 'Vertical Down Slice' },
+];
 
 function App() {
   const [images, setImages] = useState<File[]>([]);
   const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [transition, setTransition] = useState('random');
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -34,6 +73,8 @@ function App() {
     const formData = new FormData();
     images.forEach(img => formData.append('images', img));
     formData.append('youtubeUrl', youtubeUrl);
+    formData.append('startTime', startTime);
+    formData.append('transition', transition);
     formData.append('duration', duration.toString());
 
     try {
@@ -128,7 +169,7 @@ function App() {
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">YouTube Audio URL (Optional)</label>
                   <div className="flex gap-2">
-                    <div className="relative flex-1">
+                    <div className="relative flex-[2]">
                       <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                       <input 
                         type="text"
@@ -138,6 +179,32 @@ function App() {
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-pink-500 transition-colors"
                       />
                     </div>
+                    <div className="relative flex-1">
+                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input 
+                        type="text"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        placeholder="Start (0:00)"
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-pink-500 transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Transition Style</label>
+                  <div className="relative">
+                    <Wand2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <select
+                      value={transition}
+                      onChange={(e) => setTransition(e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-pink-500 transition-colors appearance-none"
+                    >
+                      {TRANSITIONS.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
