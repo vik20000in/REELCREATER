@@ -16,7 +16,7 @@ const TRANSITIONS = [
   'hlslice', 'hrslice', 'vuslice', 'vdslice'
 ];
 
-exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, transitionType, animationType) => {
+exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, transitions, imageAnimations) => {
   return new Promise((resolve, reject) => {
     const outputPath = path.join(__dirname, '../temp', `${jobId}.mp4`);
     const tempDir = path.join(__dirname, '../temp', jobId);
@@ -29,26 +29,20 @@ exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, tr
     const imageDuration = totalDuration / imagePaths.length;
     const transitionDuration = 1.0; // 1 second crossfade
 
-    // Determine transition
-    let selectedTransition = transitionType;
-    if (!selectedTransition || selectedTransition === 'random') {
-      selectedTransition = TRANSITIONS[Math.floor(Math.random() * TRANSITIONS.length)];
-    }
+    // Helper to get transition
+    const getTransition = () => {
+      let available = transitions;
+      if (!Array.isArray(available)) available = [available];
+      
+      // If 'random' is selected (or it's the default), pick from ALL transitions
+      if (available.includes('random')) {
+         return TRANSITIONS[Math.floor(Math.random() * TRANSITIONS.length)];
+      }
+      
+      // Otherwise pick random from the selected list
+      return available[Math.floor(Math.random() * available.length)];
+    };
 
-    // Create a complex filter for Ken Burns and transitions
-    // This is complex. For simplicity in this MVP, we might just do a slideshow
-    // But the user asked for Ken Burns.
-    
-    // Strategy:
-    // 1. Create a video clip for each image with Ken Burns effect
-    // 2. Concatenate them with crossfades
-    
-    // Since fluent-ffmpeg complex filters are hard to generate dynamically for N inputs,
-    // we will generate a concat file or use a loop.
-    
-    // Let's try generating individual clips first, then concat.
-    // This is slower but more reliable for dynamic inputs.
-    
     (async () => {
       try {
         const clips = new Array(imagePaths.length);
@@ -63,7 +57,10 @@ exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, tr
           // We need to ensure the clip is long enough for the transition overlap
           const clipDuration = imageDuration + (i < imagePaths.length - 1 ? transitionDuration : 0);
           
-          await createClip(imgPath, clipPath, clipDuration, animationType);
+          // Get specific animation for this image
+          const anim = imageAnimations && imageAnimations[i] ? imageAnimations[i] : 'random';
+
+          await createClip(imgPath, clipPath, clipDuration, anim);
           clips[i] = clipPath;
         };
 
@@ -81,10 +78,6 @@ exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, tr
         }
         
         // Now concat with crossfade
-        // Using a complex filter for concat is best
-        // [0][1]xfade=transition=fade:duration=1:offset=3[v1];
-        // [v1][2]xfade=transition=fade:duration=1:offset=6[v2]...
-        
         const command = ffmpeg();
         clips.forEach(clip => command.input(clip));
         
@@ -97,7 +90,8 @@ exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, tr
         for (let i = 1; i < clips.length; i++) {
           const nextStream = `${i}:v`;
           const outStream = `v${i}`;
-          filterComplex.push(`[${lastStream}][${nextStream}]xfade=transition=${selectedTransition}:duration=${transitionDuration}:offset=${currentOffset}[${outStream}]`);
+          const transition = getTransition();
+          filterComplex.push(`[${lastStream}][${nextStream}]xfade=transition=${transition}:duration=${transitionDuration}:offset=${currentOffset}[${outStream}]`);
           lastStream = outStream;
           currentOffset += imageDuration;
         }
@@ -166,6 +160,18 @@ function createClip(imagePath, outputPath, duration, animationType) {
     const panDown = `z='1.2':d=${frames}:x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*(on/${frames})'`;
     const panUp = `z='1.2':d=${frames}:x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*(1-on/${frames})'`;
 
+    // New Animations
+    const diagTLBR = `z='1.2':d=${frames}:x='(iw-iw/zoom)*(on/${frames})':y='(ih-ih/zoom)*(on/${frames})'`;
+    const diagTRBL = `z='1.2':d=${frames}:x='(iw-iw/zoom)*(1-on/${frames})':y='(ih-ih/zoom)*(on/${frames})'`;
+    const pulse = `z='if(lte(on,${frames}/2), min(zoom+0.0015,1.2), max(zoom-0.0015,1.0))':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'`;
+    const shake = `z='1.1':d=${frames}:x='iw/2-(iw/zoom/2)+10*sin(on)':y='ih/2-(ih/zoom/2)+10*cos(on)'`;
+
+    // New Innovative Animations
+    const spiral = `z='1.2':d=${frames}:x='iw/2-(iw/zoom/2)+20*sin(on/20)':y='ih/2-(ih/zoom/2)+20*cos(on/20)'`;
+    const sway = `z='1.1':d=${frames}:x='iw/2-(iw/zoom/2)+30*sin(on/40)':y='ih/2-(ih/zoom/2)'`;
+    const bounce = `z='1.1':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)+30*abs(sin(on/30))'`;
+    const dramaticZoom = `z='min(zoom+0.005,1.5)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'`;
+
     let zoompan;
     switch (animationType) {
       case 'zoomIn':
@@ -186,8 +192,37 @@ function createClip(imagePath, outputPath, duration, animationType) {
       case 'panDown':
         zoompan = panDown;
         break;
+      case 'diagTLBR':
+        zoompan = diagTLBR;
+        break;
+      case 'diagTRBL':
+        zoompan = diagTRBL;
+        break;
+      case 'pulse':
+        zoompan = pulse;
+        break;
+      case 'shake':
+        zoompan = shake;
+        break;
+      case 'spiral':
+        zoompan = spiral;
+        break;
+      case 'sway':
+        zoompan = sway;
+        break;
+      case 'bounce':
+        zoompan = bounce;
+        break;
+      case 'dramaticZoom':
+        zoompan = dramaticZoom;
+        break;
       default: // random
-        const directions = [zoomInCenter, zoomInTopLeft, zoomOutCenter, panRight, panLeft, panUp, panDown];
+        const directions = [
+          zoomInCenter, zoomInTopLeft, zoomOutCenter, 
+          panRight, panLeft, panUp, panDown, 
+          diagTLBR, diagTRBL, pulse, shake,
+          spiral, sway, bounce, dramaticZoom
+        ];
         zoompan = directions[Math.floor(Math.random() * directions.length)];
     }
 

@@ -39,11 +39,25 @@ exports.generateReel = (req, res) => {
 
     const jobId = uuidv4();
     const images = req.files.map(f => f.path);
-    const { youtubeUrl, startTime, transition, animationType, duration = 30 } = req.body;
+    const { youtubeUrl, startTime, transitions, imageAnimations, duration = 30, bpm } = req.body;
 
     try {
       console.log(`[${jobId}] Starting generation...`);
       
+      // Parse JSON strings
+      const parsedTransitions = transitions ? JSON.parse(transitions) : ['random'];
+      const parsedAnimations = imageAnimations ? JSON.parse(imageAnimations) : [];
+
+      // Calculate duration if BPM is provided
+      let finalDuration = parseInt(duration);
+      if (bpm && !isNaN(parseInt(bpm)) && parseInt(bpm) > 0) {
+        const beatsPerMinute = parseInt(bpm);
+        const secondsPerBeat = 60 / beatsPerMinute;
+        // Total duration = seconds per beat * number of images
+        finalDuration = secondsPerBeat * images.length;
+        console.log(`[${jobId}] Using BPM ${beatsPerMinute}. Duration per image: ${secondsPerBeat}s. Total: ${finalDuration}s`);
+      }
+
       // 1. Get Audio
       let audioPath = null;
       if (youtubeUrl) {
@@ -53,7 +67,7 @@ exports.generateReel = (req, res) => {
 
       // 2. Generate Video
       console.log(`[${jobId}] Processing video...`);
-      const outputPath = await videoService.createReel(images, audioPath, parseInt(duration), jobId, startTime, transition, animationType);
+      const outputPath = await videoService.createReel(images, audioPath, finalDuration, jobId, startTime, parsedTransitions, parsedAnimations);
 
       // 3. Send File
       res.download(outputPath, 'reel.mp4', (err) => {

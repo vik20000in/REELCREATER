@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const reelController = require('./controllers/reelController');
+const websiteController = require('./controllers/websiteController');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,6 +21,11 @@ app.post('/api/generate', (req, res, next) => {
   console.log('Received generate request');
   next();
 }, reelController.generateReel);
+
+app.post('/api/generate-website-demo', (req, res, next) => {
+  console.log('Received website demo request');
+  next();
+}, websiteController.generateDemo);
 
 // Error handling
 app.use((err, req, res, next) => {
