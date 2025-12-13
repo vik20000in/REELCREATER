@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { Upload, Youtube, Music, Download, Loader2, X, Play, Clock, Wand2 } from 'lucide-react';
+import { Upload, Youtube, Music, Download, Loader2, X, Play, Clock, Wand2, Glasses } from 'lucide-react';
 import { TEMPLATES } from '../data/templates';
+import type { Template } from '../data/templates';
+import { SunglassesEditor } from './SunglassesEditor';
+import { Save, Trash2 } from 'lucide-react';
 
 const TRANSITIONS = [
   { id: 'random', name: 'Random (Surprise Me)' },
@@ -62,9 +65,74 @@ export function ImageReelGenerator() {
   const [isImporting, setIsImporting] = useState(false);
   const [optimizeSize, setOptimizeSize] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [editingImageId, setEditingImageId] = useState<string | null>(null);
+  
+  // Custom Templates State
+  const [customTemplates, setCustomTemplates] = useState<Template[]>([]);
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [newTemplateDesc, setNewTemplateDesc] = useState('');
+
+  // Load custom templates from localStorage
+  React.useEffect(() => {
+    const saved = localStorage.getItem('customTemplates');
+    if (saved) {
+      try {
+        setCustomTemplates(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to parse custom templates', e);
+      }
+    }
+  }, []);
+
+  // Save custom templates to localStorage
+  React.useEffect(() => {
+    localStorage.setItem('customTemplates', JSON.stringify(customTemplates));
+  }, [customTemplates]);
+
+  const handleSaveTemplate = () => {
+    if (!newTemplateName.trim()) return;
+
+    const newTemplate: Template = {
+      id: `custom-${Date.now()}`,
+      name: newTemplateName,
+      description: newTemplateDesc || 'Custom template',
+      config: {
+        transitions: selectedTransitions,
+        imageAnimation: images.length > 0 ? images[0].animation : 'random',
+        duration,
+        bpm,
+        youtubeUrl
+      }
+    };
+
+    setCustomTemplates(prev => [...prev, newTemplate]);
+    setShowSaveTemplateModal(false);
+    setNewTemplateName('');
+    setNewTemplateDesc('');
+    setSelectedTemplate(newTemplate.id);
+  };
+
+  const deleteCustomTemplate = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setCustomTemplates(prev => prev.filter(t => t.id !== id));
+    if (selectedTemplate === id) {
+      setSelectedTemplate(null);
+    }
+  };
+
+  const handleSaveEditedImage = (newFile: File) => {
+    if (editingImageId) {
+      setImages(prev => prev.map(img => 
+        img.id === editingImageId ? { ...img, file: newFile } : img
+      ));
+      setEditingImageId(null);
+    }
+  };
 
   const applyTemplate = (templateId: string) => {
-    const template = TEMPLATES.find(t => t.id === templateId);
+    const allTemplates = [...TEMPLATES, ...customTemplates];
+    const template = allTemplates.find(t => t.id === templateId);
     if (!template) return;
 
     setSelectedTemplate(templateId);
@@ -119,7 +187,8 @@ export function ImageReelGenerator() {
       // Determine default animation based on selected template
       let defaultAnimation = 'random';
       if (selectedTemplate) {
-        const template = TEMPLATES.find(t => t.id === selectedTemplate);
+        const allTemplates = [...TEMPLATES, ...customTemplates];
+        const template = allTemplates.find(t => t.id === selectedTemplate);
         if (template) {
           defaultAnimation = template.config.imageAnimation;
         }
@@ -255,13 +324,90 @@ export function ImageReelGenerator() {
               <h2 className="font-semibold text-gray-200">Choose a Template</h2>
               <p className="text-xs text-gray-400">
                 {selectedTemplate 
-                  ? TEMPLATES.find(t => t.id === selectedTemplate)?.name 
+                  ? [...TEMPLATES, ...customTemplates].find(t => t.id === selectedTemplate)?.name 
                   : 'Select a style for your reel'}
               </p>
             </div>
           </div>
           <div className="text-cyan-400 text-sm font-medium">Browse</div>
         </button>
+
+        {/* Save Template Button */}
+        <button
+          onClick={() => setShowSaveTemplateModal(true)}
+          className="w-full bg-gray-900/50 p-4 rounded-2xl border border-gray-800 backdrop-blur-sm flex items-center justify-between hover:bg-gray-800/50 transition-colors group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-emerald-500/10 rounded-lg group-hover:bg-emerald-500/20 transition-colors">
+              <Save className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div className="text-left">
+              <h2 className="font-semibold text-gray-200">Save as Template</h2>
+              <p className="text-xs text-gray-400">
+                Save current settings as a new template
+              </p>
+            </div>
+          </div>
+          <div className="text-emerald-400 text-sm font-medium">Save</div>
+        </button>
+
+        {/* Save Template Modal */}
+        {showSaveTemplateModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowSaveTemplateModal(false)}>
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="p-6 border-b border-gray-800 flex items-center justify-between bg-gray-900/50">
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <Save className="w-5 h-5 text-emerald-400" />
+                  Save Template
+                </h2>
+                <button 
+                  onClick={() => setShowSaveTemplateModal(false)}
+                  className="p-2 hover:bg-gray-800 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Template Name</label>
+                  <input
+                    type="text"
+                    value={newTemplateName}
+                    onChange={(e) => setNewTemplateName(e.target.value)}
+                    placeholder="My Awesome Template"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 px-4 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Description (Optional)</label>
+                  <textarea
+                    value={newTemplateDesc}
+                    onChange={(e) => setNewTemplateDesc(e.target.value)}
+                    placeholder="Describe the vibe..."
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 px-4 text-sm focus:outline-none focus:border-emerald-500 transition-colors resize-none h-24"
+                  />
+                </div>
+                <div className="flex justify-end gap-3 mt-4">
+                  <button
+                    onClick={() => setShowSaveTemplateModal(false)}
+                    className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveTemplate}
+                    disabled={!newTemplateName.trim()}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Save Template
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Template Modal */}
         {showTemplateModal && (
@@ -281,7 +427,30 @@ export function ImageReelGenerator() {
               </div>
               
               <div className="p-6 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {TEMPLATES.map(template => (
+                <button
+                  onClick={() => {
+                    setSelectedTemplate(null);
+                    setBpm('');
+                    setDuration(30);
+                    setSelectedTransitions(['random']);
+                    setShowTemplateModal(false);
+                  }}
+                  className={`p-4 rounded-xl border text-left transition-all group relative overflow-hidden ${
+                    selectedTemplate === null
+                      ? 'bg-gray-700/50 border-gray-500 shadow-lg'
+                      : 'bg-gray-800/30 border-gray-700 hover:bg-gray-800/50 hover:border-gray-600'
+                  }`}
+                >
+                  <div className="relative z-10">
+                    <div className="font-medium text-base mb-1 text-gray-200 group-hover:text-white transition-colors">
+                      None
+                    </div>
+                    <div className="text-sm text-gray-400 leading-relaxed">
+                      Don't use any template. Configure settings manually.
+                    </div>
+                  </div>
+                </button>
+                {[...customTemplates, ...TEMPLATES].map(template => (
                   <button
                     key={template.id}
                     onClick={() => {
@@ -295,8 +464,18 @@ export function ImageReelGenerator() {
                     }`}
                   >
                     <div className="relative z-10">
-                      <div className="font-medium text-base mb-1 text-gray-200 group-hover:text-cyan-400 transition-colors">
-                        {template.name}
+                      <div className="flex justify-between items-start">
+                        <div className="font-medium text-base mb-1 text-gray-200 group-hover:text-cyan-400 transition-colors">
+                          {template.name}
+                        </div>
+                        {template.id.startsWith('custom-') && (
+                          <div 
+                            onClick={(e) => deleteCustomTemplate(e, template.id)}
+                            className="p-1 hover:bg-red-500/20 rounded text-gray-500 hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </div>
+                        )}
                       </div>
                       <div className="text-sm text-gray-400 leading-relaxed">
                         {template.description}
@@ -488,12 +667,21 @@ export function ImageReelGenerator() {
                   className="w-full h-full object-cover rounded-lg pointer-events-none"
                 />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-1 rounded-lg">
-                  <button 
-                    onClick={() => removeImage(img.id)}
-                    className="self-end p-0.5 bg-red-500/80 rounded-full hover:bg-red-600 transition-colors text-white"
-                  >
-                    <X className="w-2.5 h-2.5" />
-                  </button>
+                  <div className="flex justify-between w-full">
+                    <button 
+                      onClick={() => setEditingImageId(img.id)}
+                      className="p-0.5 bg-violet-500/80 rounded-full hover:bg-violet-600 transition-colors text-white"
+                      title="Add Sunglasses"
+                    >
+                      <Glasses className="w-2.5 h-2.5" />
+                    </button>
+                    <button 
+                      onClick={() => removeImage(img.id)}
+                      className="p-0.5 bg-red-500/80 rounded-full hover:bg-red-600 transition-colors text-white"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
                   <div className="w-full" onClick={(e) => e.stopPropagation()}>
                     <select
                       value={img.animation}
@@ -567,6 +755,14 @@ export function ImageReelGenerator() {
           </div>
         )}
       </div>
+      {/* Sunglasses Editor Modal */}
+      {editingImageId && (
+        <SunglassesEditor
+          imageFile={images.find(img => img.id === editingImageId)!.file}
+          onSave={handleSaveEditedImage}
+          onCancel={() => setEditingImageId(null)}
+        />
+      )}
     </div>
   );
 }
