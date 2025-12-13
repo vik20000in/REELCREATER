@@ -38,6 +38,53 @@ const TRANSITIONS = [
   { id: 'vdslice', name: 'Vertical Down Slice' },
 ];
 
+const TEMPLATES = [
+  {
+    id: 'cinematic',
+    name: 'Cinematic Slow',
+    description: 'Slow, smooth transitions for a dramatic effect.',
+    config: {
+      transitions: ['dissolve', 'fade'],
+      imageAnimation: 'dramaticZoom',
+      duration: 60,
+      bpm: ''
+    }
+  },
+  {
+    id: 'fast',
+    name: 'Fast Paced',
+    description: 'Quick cuts and energetic movements.',
+    config: {
+      transitions: ['slideleft', 'slideright', 'wipeup', 'wipedown'],
+      imageAnimation: 'random',
+      duration: 15,
+      bpm: '120'
+    }
+  },
+  {
+    id: 'storyteller',
+    name: 'Storyteller',
+    description: 'Classic slideshow feel with black fades.',
+    config: {
+      transitions: ['fadeblack'],
+      imageAnimation: 'panLeft',
+      duration: 30,
+      bpm: ''
+    }
+  },
+  {
+    id: 'dynamic',
+    name: 'Dynamic',
+    description: 'High energy with varied animations.',
+    config: {
+      transitions: ['random'],
+      imageAnimation: 'random',
+      duration: 30,
+      bpm: ''
+    }
+  }
+];
+
 interface ImageItem {
   file: File;
   animation: string;
@@ -56,12 +103,37 @@ export function ImageReelGenerator() {
   const [bpm, setBpm] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [draggedItem, setDraggedItem] = useState<number | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+
+  const applyTemplate = (templateId: string) => {
+    const template = TEMPLATES.find(t => t.id === templateId);
+    if (!template) return;
+
+    setSelectedTemplate(templateId);
+    setSelectedTransitions(template.config.transitions);
+    setDuration(template.config.duration);
+    setBpm(template.config.bpm || '');
+    
+    // Apply animation to existing images
+    if (images.length > 0) {
+      setImages(prev => prev.map(img => ({ ...img, animation: template.config.imageAnimation })));
+    }
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
+      // Determine default animation based on selected template
+      let defaultAnimation = 'random';
+      if (selectedTemplate) {
+        const template = TEMPLATES.find(t => t.id === selectedTemplate);
+        if (template) {
+          defaultAnimation = template.config.imageAnimation;
+        }
+      }
+
       const newImages = Array.from(e.target.files).map(file => ({
         file,
-        animation: 'random',
+        animation: defaultAnimation,
         id: Math.random().toString(36).substr(2, 9)
       }));
       setImages(prev => [...prev, ...newImages]);
@@ -174,6 +246,30 @@ export function ImageReelGenerator() {
   return (
     <div className="grid md:grid-cols-2 gap-8">
       <div className="space-y-8">
+        {/* Template Section */}
+        <section className="bg-gray-900/50 p-6 rounded-2xl border border-gray-800 backdrop-blur-sm">
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <Wand2 className="w-5 h-5 text-cyan-400" />
+            Choose a Template
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            {TEMPLATES.map(template => (
+              <button
+                key={template.id}
+                onClick={() => applyTemplate(template.id)}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  selectedTemplate === template.id
+                    ? 'bg-cyan-900/30 border-cyan-500/50 shadow-lg shadow-cyan-900/20'
+                    : 'bg-gray-800/50 border-gray-700 hover:bg-gray-800 hover:border-gray-600'
+                }`}
+              >
+                <div className="font-medium text-sm mb-1 text-gray-200">{template.name}</div>
+                <div className="text-xs text-gray-400 line-clamp-2">{template.description}</div>
+              </button>
+            ))}
+          </div>
+        </section>
+
         {/* Upload Section */}
         <section className="bg-gray-900/50 p-6 rounded-2xl border border-gray-800 backdrop-blur-sm">
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">

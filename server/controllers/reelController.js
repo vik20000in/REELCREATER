@@ -53,9 +53,17 @@ exports.generateReel = (req, res) => {
       if (bpm && !isNaN(parseInt(bpm)) && parseInt(bpm) > 0) {
         const beatsPerMinute = parseInt(bpm);
         const secondsPerBeat = 60 / beatsPerMinute;
-        // Total duration = seconds per beat * number of images
-        finalDuration = secondsPerBeat * images.length;
-        console.log(`[${jobId}] Using BPM ${beatsPerMinute}. Duration per image: ${secondsPerBeat}s. Total: ${finalDuration}s`);
+        // Calculate duration for 1 beat per image
+        const syncDuration = secondsPerBeat * images.length;
+        
+        // If sync duration fits within user's selected duration, use it
+        // Otherwise, cap it at the user's selected duration (images will be faster than 1 beat)
+        if (syncDuration <= finalDuration) {
+          finalDuration = syncDuration;
+          console.log(`[${jobId}] Using BPM ${beatsPerMinute}. Duration per image: ${secondsPerBeat}s. Total: ${finalDuration}s`);
+        } else {
+          console.log(`[${jobId}] BPM sync duration (${syncDuration}s) exceeds limit (${finalDuration}s). Clamping to limit.`);
+        }
       }
 
       // 1. Get Audio
