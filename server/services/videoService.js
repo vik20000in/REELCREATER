@@ -16,7 +16,7 @@ const TRANSITIONS = [
   'hlslice', 'hrslice', 'vuslice', 'vdslice'
 ];
 
-exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, transitions, imageAnimations) => {
+exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, transitions, imageAnimations, optimizeSize = false) => {
   return new Promise((resolve, reject) => {
     const outputPath = path.join(__dirname, '../temp', `${jobId}.mp4`);
     const tempDir = path.join(__dirname, '../temp', jobId);
@@ -106,6 +106,25 @@ exports.createReel = (imagePaths, audioPath, totalDuration, jobId, startTime, tr
           '-preset', 'fast',
           '-shortest' // Cut to shortest stream (video or audio)
         ];
+
+        if (optimizeSize) {
+          // Target 9MB to be safe under 10MB
+          // 9MB in bits = 9 * 8 * 1024 * 1024 = 75,497,472 bits
+          const targetBits = 75497472;
+          const audioBitrate = 128000; // 128k audio
+          
+          // Calculate video bitrate: (TargetBits / Duration) - AudioBitrate
+          let videoBitrate = Math.floor((targetBits / totalDuration) - audioBitrate);
+          
+          // Ensure minimum bitrate of 500k so it's not potato quality
+          if (videoBitrate < 500000) videoBitrate = 500000;
+          
+          console.log(`[${jobId}] Optimizing size. Target Video Bitrate: ${Math.round(videoBitrate/1000)}k`);
+          
+          outputOptions.push(`-b:v`, `${videoBitrate}`);
+          outputOptions.push(`-maxrate`, `${videoBitrate}`);
+          outputOptions.push(`-bufsize`, `${videoBitrate * 2}`);
+        }
         
         if (audioPath) {
           // Handle start time

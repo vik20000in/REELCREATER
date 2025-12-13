@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const reelController = require('./controllers/reelController');
+const instagramController = require('./controllers/instagramController');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,6 +21,8 @@ app.post('/api/generate', (req, res, next) => {
   console.log('Received generate request');
   next();
 }, reelController.generateReel);
+
+app.post('/api/import-instagram', instagramController.importReel);
 
 // Error handling
 app.use((err, req, res, next) => {

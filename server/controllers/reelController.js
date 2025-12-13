@@ -39,7 +39,7 @@ exports.generateReel = (req, res) => {
 
     const jobId = uuidv4();
     const images = req.files.map(f => f.path);
-    const { youtubeUrl, startTime, transitions, imageAnimations, duration = 30, bpm } = req.body;
+    const { youtubeUrl, startTime, transitions, imageAnimations, duration = 30, bpm, optimizeSize } = req.body;
 
     try {
       console.log(`[${jobId}] Starting generation...`);
@@ -47,6 +47,7 @@ exports.generateReel = (req, res) => {
       // Parse JSON strings
       const parsedTransitions = transitions ? JSON.parse(transitions) : ['random'];
       const parsedAnimations = imageAnimations ? JSON.parse(imageAnimations) : [];
+      const shouldOptimize = optimizeSize === 'true';
 
       // Calculate duration if BPM is provided
       let finalDuration = parseInt(duration);
@@ -69,13 +70,29 @@ exports.generateReel = (req, res) => {
       // 1. Get Audio
       let audioPath = null;
       if (youtubeUrl) {
-        console.log(`[${jobId}] Downloading audio...`);
-        audioPath = await audioService.downloadAudio(youtubeUrl, jobId);
+        // Check if it's a local file (from Instagram import) or YouTube URL
+        if (youtubeUrl.startsWith('http://localhost') || youtubeUrl.startsWith('/uploads')) {
+          // It's a local file path we sent back to the client
+          // Extract the filename
+          const filename = path.basename(youtubeUrl);
+          const localPath = path.join(__dirname, '../uploads', filename);
+          if (fs.existsSync(localPath)) {
+            console.log(`[${jobId}] Using local audio: ${localPath}`);
+            // Copy to temp so we can clean it up later without deleting the source
+            audioPath = path.join(__dirname, '../temp', `${jobId}_audio.mp3`);
+            fs.copyFileSync(localPath, audioPath);
+          } else {
+            console.warn(`[${jobId}] Local audio file not found: ${localPath}`);
+          }
+        } else {
+          console.log(`[${jobId}] Downloading audio from YouTube...`);
+          audioPath = await audioService.downloadAudio(youtubeUrl, jobId);
+        }
       }
 
       // 2. Generate Video
       console.log(`[${jobId}] Processing video...`);
-      const outputPath = await videoService.createReel(images, audioPath, finalDuration, jobId, startTime, parsedTransitions, parsedAnimations);
+      const outputPath = await videoService.createReel(images, audioPath, finalDuration, jobId, startTime, parsedTransitions, parsedAnimations, shouldOptimize);
 
       // 3. Send File
       res.download(outputPath, 'reel.mp4', (err) => {
